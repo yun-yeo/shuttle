@@ -101,8 +101,10 @@ export class Relayer {
           new BigNumber(taxCap.amount.toFixed()),
           new BigNumber(taxRate.mul(amount).toFixed())
         ).toFixed();
-        const taxCoin = new Coin(denom, taxAmount);
-        const relayAmount = new BigNumber(amount).minus(taxAmount).toFixed();
+        const taxCoin = new Coin(denom, taxAmount).toIntCeilCoin();
+        const relayAmount = new BigNumber(amount)
+          .minus(taxCoin.amount.toFixed())
+          .toFixed(0);
 
         taxFees = taxFees.add(taxCoin);
         msgs.push(
