@@ -10,11 +10,14 @@ import {
   Coin,
   Tx,
   TxInfo,
+  Coins,
+  Fee,
 } from '@terra-money/terra.js';
 import { MonitoringData } from 'Monitoring';
 import axios from 'axios';
 import * as http from 'http';
 import * as https from 'https';
+import BigNumber from 'bignumber.js';
 
 const ax = axios.create({
   httpAgent: new http.Agent({ keepAlive: true }),
@@ -71,65 +74,74 @@ export class Relayer {
     monitoringDatas: MonitoringData[],
     sequence: number
   ): Promise<RelayData | null> {
-    const msgs: Msg[] = monitoringDatas.reduce(
-      (msgs: Msg[], data: MonitoringData) => {
-        const fromAddr = this.Wallet.key.accAddress;
+    const taxFees: Coins = new Coins();
+    const msgs: Msg[] = [];
+    for (const data of monitoringDatas) {
+      const fromAddr = this.Wallet.key.accAddress;
 
-        // If the given `to` address not proper address,
-        // relayer send the funds to donation address
-        const toAddr = AccAddress.validate(data.to) ? data.to : TERRA_DONATION;
+      // If the given `to` address not proper address,
+      // relayer send the funds to donation address
+      const toAddr = AccAddress.validate(data.to) ? data.to : TERRA_DONATION;
 
-        // 18 decimal to 6 decimal
-        // it must bigger than 1,000,000,000,000
-        if (data.amount.length < 13) {
-          return msgs;
-        }
+      // 18 decimal to 6 decimal
+      // it must bigger than 1,000,000,000,000
+      if (data.amount.length < 13) {
+        continue;
+      }
 
-        const amount = data.amount.slice(0, data.amount.length - 12);
-        const info = data.terraAssetInfo;
+      const amount = data.amount.slice(0, data.amount.length - 12);
+      const info = data.terraAssetInfo;
 
-        if (info.denom) {
-          const denom = info.denom;
+      if (info.denom) {
+        const denom = info.denom;
+        const taxRate = await this.LCDClient.treasury.taxRate();
+        const taxCap = await this.LCDClient.treasury.taxCap(denom);
 
-          msgs.push(new MsgSend(fromAddr, toAddr, [new Coin(denom, amount)]));
-        } else if (info.contract_address && !info.is_eth_asset) {
-          const contract_address = info.contract_address;
+        const taxAmount = BigNumber.min(
+          new BigNumber(taxCap.amount.toFixed()),
+          new BigNumber(taxRate.mul(amount).toFixed())
+        ).toFixed();
+        const taxCoin = new Coin(denom, taxAmount);
+        const relayAmount = new BigNumber(amount).minus(taxAmount).toFixed();
 
-          msgs.push(
-            new MsgExecuteContract(
-              fromAddr,
-              contract_address,
-              {
-                transfer: {
-                  recipient: toAddr,
-                  amount: amount,
-                },
+        taxFees.add(taxCoin);
+        msgs.push(
+          new MsgSend(fromAddr, toAddr, [new Coin(denom, relayAmount)])
+        );
+      } else if (info.contract_address && !info.is_eth_asset) {
+        const contract_address = info.contract_address;
+
+        msgs.push(
+          new MsgExecuteContract(
+            fromAddr,
+            contract_address,
+            {
+              transfer: {
+                recipient: toAddr,
+                amount: amount,
               },
-              []
-            )
-          );
-        } else if (info.contract_address && info.is_eth_asset) {
-          const contract_address = info.contract_address;
+            },
+            []
+          )
+        );
+      } else if (info.contract_address && info.is_eth_asset) {
+        const contract_address = info.contract_address;
 
-          msgs.push(
-            new MsgExecuteContract(
-              fromAddr,
-              contract_address,
-              {
-                mint: {
-                  recipient: toAddr,
-                  amount: amount,
-                },
+        msgs.push(
+          new MsgExecuteContract(
+            fromAddr,
+            contract_address,
+            {
+              mint: {
+                recipient: toAddr,
+                amount: amount,
               },
-              []
-            )
-          );
-        }
-
-        return msgs;
-      },
-      []
-    );
+            },
+            []
+          )
+        );
+      }
+    }
 
     if (msgs.length === 0) {
       return null;
@@ -141,10 +153,19 @@ export class Relayer {
       TERRA_GAS_PRICE_DENOM
     ).catch(() => undefined);
 
-    const tx = await this.Wallet.createAndSignTx({
+    const simulateTx = await this.Wallet.createTx({
       msgs,
       sequence,
       gasPrices,
+    });
+
+    const tx = await this.Wallet.createAndSignTx({
+      msgs,
+      sequence,
+      fee: new Fee(
+        simulateTx.auth_info.fee.gas_limit,
+        simulateTx.auth_info.fee.amount.add(taxFees)
+      ),
     });
 
     const txHash = await this.LCDClient.tx.hash(tx);
