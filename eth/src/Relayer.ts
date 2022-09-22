@@ -74,7 +74,7 @@ export class Relayer {
     monitoringDatas: MonitoringData[],
     sequence: number
   ): Promise<RelayData | null> {
-    const taxFees: Coins = new Coins();
+    let taxFees: Coins = new Coins();
     const msgs: Msg[] = [];
     for (const data of monitoringDatas) {
       const fromAddr = this.Wallet.key.accAddress;
@@ -104,7 +104,7 @@ export class Relayer {
         const taxCoin = new Coin(denom, taxAmount);
         const relayAmount = new BigNumber(amount).minus(taxAmount).toFixed();
 
-        taxFees.add(taxCoin);
+        taxFees = taxFees.add(taxCoin);
         msgs.push(
           new MsgSend(fromAddr, toAddr, [new Coin(denom, relayAmount)])
         );
@@ -163,8 +163,11 @@ export class Relayer {
       msgs,
       sequence,
       fee: new Fee(
-        simulateTx.auth_info.fee.gas_limit,
-        simulateTx.auth_info.fee.amount.add(taxFees)
+        simulateTx.auth_info.fee.gas_limit + 100_000 /* for tax deduction */,
+        simulateTx.auth_info.fee.amount
+          .mul(1 + 100000.0 / simulateTx.auth_info.fee.gas_limit)
+          .add(taxFees)
+          .toIntCeilCoins()
       ),
     });
 
