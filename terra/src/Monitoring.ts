@@ -189,13 +189,14 @@ export class Monitoring {
           }
         }
       }
-    } else if (msgType === '/terra.wasm.v1beta1.MsgExecuteContract') {
-      const data: MsgExecuteContract.Data = msgData as MsgExecuteContract.Data;
+    } else if (msgType === '/cosmwasm.wasm.v1.MsgExecuteContract') {
+      const data: MsgExecuteContract.DataV2 =
+        msgData as MsgExecuteContract.DataV2;
 
       if (data.contract in this.TerraAssetMapping) {
         const asset = this.TerraAssetMapping[data.contract];
         const info = this.TerraAssetInfos[asset];
-        const executeMsg = data.execute_msg as any;
+        const executeMsg = data.msg as any;
 
         if (!info.is_eth_asset && 'transfer' in executeMsg) {
           // Check the msg is 'transfer' for terra asset

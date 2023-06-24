@@ -47,7 +47,7 @@
     "@typescript-eslint/parser": "^5.17.0",
     "eslint": "^8.12.0",
     "husky": "^4.3.0",
-    "jest": "^27.0.6",
+    "jest": "^25.0.0",
     "lint-staged": "^10.5.2",
     "prettier": "^2.2.1",
     "ts-jest": "^27.0.3",
@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.16.0",
-    "@terra-money/terra.js": "^3.1.6",
+    "@terra-money/terra.js": "^3.1.9",
     "axios": "^0.26.1",
     "bech32": "^2.0.0",
     "bignumber.js": "^9.0.1",
