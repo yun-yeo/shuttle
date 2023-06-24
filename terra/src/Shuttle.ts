@@ -301,26 +301,26 @@ class Shuttle {
         (v) => !existingTxs[v.txHash]
       );
 
-      // Fee whitelist for EthAnchor addresses
-      for (const index in monitoringDataAfterFilter) {
-        const data = monitoringDataAfterFilter[index];
-        if (await this.dynamoDB.isEthAnchorAddress(data.to)) {
-          const requested = new BigNumber(data.requested);
-          const fee = await this.monitoring.computeFee(
-            data.asset,
-            requested,
-            new BigNumber(2.5)
-          );
+      // // Fee whitelist for EthAnchor addresses
+      // for (const index in monitoringDataAfterFilter) {
+      //   const data = monitoringDataAfterFilter[index];
+      //   if (await this.dynamoDB.isEthAnchorAddress(data.to)) {
+      //     const requested = new BigNumber(data.requested);
+      //     const fee = await this.monitoring.computeFee(
+      //       data.asset,
+      //       requested,
+      //       new BigNumber(2.5)
+      //     );
 
-          data.amount = requested.minus(fee).toFixed(0);
-          data.fee = fee.toFixed(0);
-          monitoringDataAfterFilter[index] = data;
-        } else if (FEE_WHITELIST.includes(data.to.toLocaleLowerCase())) {
-          data.amount = data.requested;
-          data.fee = '0';
-          monitoringDataAfterFilter[index] = data;
-        }
-      }
+      //     data.amount = requested.minus(fee).toFixed(0);
+      //     data.fee = fee.toFixed(0);
+      //     monitoringDataAfterFilter[index] = data;
+      //   } else if (FEE_WHITELIST.includes(data.to.toLocaleLowerCase())) {
+      //     data.amount = data.requested;
+      //     data.fee = '0';
+      //     monitoringDataAfterFilter[index] = data;
+      //   }
+      // }
 
       // load latest gas price
       const gasPrice = new BigNumber(await this.relayer.getGasPrice())
